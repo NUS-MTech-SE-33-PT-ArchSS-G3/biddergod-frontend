@@ -10,6 +10,13 @@ export default defineConfig({
         watch: {
             usePolling: true,
         },
+        proxy: {
+            '/api': {
+                target: 'http://biddergod-dev-alb-486785394.ap-southeast-1.elb.amazonaws.com',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api/, '')
+            }
+        }
     },
     plugins: [react(),tailwindcss()],
     define: {

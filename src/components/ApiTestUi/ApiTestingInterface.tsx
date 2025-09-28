@@ -16,7 +16,7 @@ export default function ApiTestingInterface({user}: ApiTestingInterfaceProps) {
     const [isLoading, setIsLoading] = useState(false);
     const[showSwaggerUI, setShowSwaggerUI] = useState(false);
 
-    const USERS_SERVICE_URL = "http://localhost:8080";
+    const USERS_SERVICE_URL = "/api";
 
     useEffect(() => {
         if (user) {
@@ -103,7 +103,6 @@ export default function ApiTestingInterface({user}: ApiTestingInterfaceProps) {
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                         <h4 className="font-medium text-yellow-900 mb-2">Prerequisites</h4>
                         <ul className="text-sm text-yellow-800 space-y-1">
-                            <li>Users service must be running on localhost:8080</li>
                             <li>User must be authenticated to access protected endpoints</li>
                             <li>Include Authorization header with Bearer token for authenticated requests</li>
                         </ul>
