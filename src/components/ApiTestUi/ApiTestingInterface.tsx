@@ -16,7 +16,8 @@ export default function ApiTestingInterface({user}: ApiTestingInterfaceProps) {
     const [isLoading, setIsLoading] = useState(false);
     const[showSwaggerUI, setShowSwaggerUI] = useState(false);
 
-    const USERS_SERVICE_URL = "/api";
+    // const USERS_SERVICE_URL = "http://localhost:8080";
+    const USERS_SERVICE_URL = import.meta.env.VITE_USER_API_URL;
 
     useEffect(() => {
         if (user) {
