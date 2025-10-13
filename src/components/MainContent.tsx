@@ -2,6 +2,7 @@ import type {AuthUser} from "aws-amplify/auth";
 import {useState} from "react";
 import AuctionsGrid from "./AuctionsGrid";
 import ApiTestingInterface from "./ApiTestUi/ApiTestingInterface.tsx";
+import DevConsole from "./DevConsole";
 
 interface MainContentProps {
     user: AuthUser | null;
@@ -77,6 +78,16 @@ export default function MainContent({user, handleSignOut, setShowAuth}: MainCont
                         >
                             API Testing
                         </button>
+                        <button
+                            onClick={() => setActiveTab("dev")}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                activeTab === "dev"
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            Dev
+                        </button>
                     </div>
                 </div>
             </nav>
@@ -85,6 +96,7 @@ export default function MainContent({user, handleSignOut, setShowAuth}: MainCont
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {activeTab === "home" && <AuctionsGrid />}
                 {activeTab === "api" && <ApiTestingInterface user={user} />}
+                {activeTab === "dev" && <DevConsole user={user} />}
             </main>
         </div>
     )
