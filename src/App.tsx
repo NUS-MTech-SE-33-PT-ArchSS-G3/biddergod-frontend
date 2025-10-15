@@ -2,15 +2,19 @@ import outputs from "../amplify_outputs.json";
 import {Amplify} from "aws-amplify";
 import {useEffect, useState} from "react";
 import type {AuthUser} from "aws-amplify/auth";
-import {getCurrentUser, signOut} from "aws-amplify/auth";
+import {getCurrentUser, signOut, fetchUserAttributes} from "aws-amplify/auth";
 import MainContent from "./components/MainContent.tsx";
 import AuthenticatorWrapper from "./components/AuthenticatorWrapper.tsx";
 
 Amplify.configure(outputs);
 
+export interface UserWithEmail extends AuthUser {
+    email?: string;
+}
+
 function App() {
     const [showAuth, setShowAuth] = useState(false);
-    const [user, setUser] = useState<AuthUser | null>(null);
+    const [user, setUser] = useState<UserWithEmail | null>(null);
 
     useEffect(() => {
         void checkAuthStatus();
@@ -19,7 +23,12 @@ function App() {
     const checkAuthStatus = async () => {
         try {
             const currentUser = await getCurrentUser();
-            setUser(currentUser);
+            const attributes = await fetchUserAttributes();
+            const userWithEmail: UserWithEmail = {
+                ...currentUser,
+                email: attributes.email
+            };
+            setUser(userWithEmail);
         } catch {
             setUser(null);
         }

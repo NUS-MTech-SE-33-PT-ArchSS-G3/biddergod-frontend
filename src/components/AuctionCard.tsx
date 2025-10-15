@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { openAuction, endAuction } from '../services/auctionService';
+
 interface AuctionCardProps {
   id?: string;
   title?: string;
@@ -11,9 +14,12 @@ interface AuctionCardProps {
   totalBids?: number;
   sellerName?: string;
   category?: string;
+  currentUsername?: string;
+  onAuctionUpdate?: () => void;
 }
 
 export function AuctionCard({
+  id,
   title = "Premium Auction Item",
   description = "A carefully curated item perfect for collectors and enthusiasts.",
   startingPrice = 100,
@@ -24,11 +30,50 @@ export function AuctionCard({
   status = "active",
   totalBids = 0,
   sellerName = "TrustedSeller",
-  category = "Collectibles"
+  category = "Collectibles",
+  currentUsername,
+  onAuctionUpdate,
 }: AuctionCardProps) {
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const timeLeft = getTimeRemaining(auctionEndTime);
   const displayPrice = currentBid > 0 ? currentBid : startingPrice;
   const hasImage = imageUrls && imageUrls.length > 0;
+  const isSeller = currentUsername && sellerName === currentUsername;
+
+  const handleOpenAuction = async () => {
+    if (!id) return;
+
+    try {
+      setIsActionLoading(true);
+      await openAuction(id);
+      alert('Auction opened successfully!');
+      if (onAuctionUpdate) onAuctionUpdate();
+    } catch (error) {
+      console.error('Failed to open auction:', error);
+      alert(`Failed to open auction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleEndAuction = async () => {
+    if (!id) return;
+
+    const confirmed = confirm('Are you sure you want to end this auction?');
+    if (!confirmed) return;
+
+    try {
+      setIsActionLoading(true);
+      await endAuction(id);
+      alert('Auction ended successfully!');
+      if (onAuctionUpdate) onAuctionUpdate();
+    } catch (error) {
+      console.error('Failed to end auction:', error);
+      alert(`Failed to end auction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 overflow-hidden">
@@ -49,8 +94,10 @@ export function AuctionCard({
         {/* Status Badge */}
         <div className="absolute top-3 right-3">
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-            status === 'active'
+            status === 'open'
               ? 'bg-green-100 text-green-800'
+              : status === 'draft'
+              ? 'bg-yellow-100 text-yellow-800'
               : 'bg-gray-100 text-gray-600'
           }`}>
             {status.toUpperCase()}
@@ -115,17 +162,47 @@ export function AuctionCard({
           </div>
         </div>
 
-        {/* Action Button */}
-        <button
-          className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-            status !== 'active' || timeLeft === 'Ended'
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-          }`}
-          disabled={status !== 'active' || timeLeft === 'Ended'}
-        >
-          {timeLeft === 'Ended' ? 'Auction Ended' : 'Place Bid'}
-        </button>
+        {/* Action Buttons */}
+        {isSeller ? (
+          // Seller controls
+          <div className="space-y-2">
+            {status === 'draft' && (
+              <button
+                onClick={handleOpenAuction}
+                disabled={isActionLoading}
+                className="w-full py-3 px-4 rounded-lg font-medium transition-colors bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isActionLoading ? 'Opening...' : 'Open Auction'}
+              </button>
+            )}
+            {status === 'open' && (
+              <button
+                onClick={handleEndAuction}
+                disabled={isActionLoading}
+                className="w-full py-3 px-4 rounded-lg font-medium transition-colors bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isActionLoading ? 'Ending...' : 'End Auction'}
+              </button>
+            )}
+            {status === 'closed' && (
+              <div className="w-full py-3 px-4 rounded-lg font-medium text-center bg-gray-100 text-gray-600">
+                Auction Closed
+              </div>
+            )}
+          </div>
+        ) : (
+          // Buyer controls
+          <button
+            className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+              status !== 'open' || timeLeft === 'Ended'
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+            }`}
+            disabled={status !== 'open' || timeLeft === 'Ended'}
+          >
+            {timeLeft === 'Ended' ? 'Auction Ended' : status === 'draft' ? 'Not Yet Open' : 'Place Bid'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -134,15 +211,15 @@ export function AuctionCard({
 function getTimeRemaining(endTime: string): string {
   const end = new Date(endTime).getTime();
   const now = new Date().getTime();
-  const distance = end - now;
+  const duration = end - now;
 
-  if (distance < 0) {
+  if (duration < 0) {
     return 'Ended';
   }
 
-  const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+  const days = Math.floor(duration / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((duration % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
 
   if (days > 0) {
     return `${days}d ${hours}h`;
