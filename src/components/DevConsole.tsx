@@ -1,5 +1,7 @@
 import {useState, useEffect, useRef} from "react";
 import type {AuthUser} from "aws-amplify/auth";
+import { v4 as uuidv4 } from 'uuid';
+import { API_ENDPOINTS } from '../config/api';
 
 interface DevConsoleProps {
     user: AuthUser | null;
@@ -15,7 +17,7 @@ interface ConsoleMessage {
 export default function DevConsole({user}: DevConsoleProps) {
     const [messages, setMessages] = useState<ConsoleMessage[]>([]);
     const [sseConnected, setSseConnected] = useState(false);
-    const [sseUrl, setSseUrl] = useState('http://localhost:8000/events');
+    const [sseUrl, setSseUrl] = useState(API_ENDPOINTS.SSE.EVENTS);
     const [isConnecting, setIsConnecting] = useState(false);
     const [auctionId, setAuctionId] = useState('Enter Auction ID');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -109,12 +111,26 @@ export default function DevConsole({user}: DevConsoleProps) {
             }
 
             const response = await fetch(endpoint, options);
-            const data = await response.json();
+
+            // Try to parse JSON, fallback to text if it fails
+            let data;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    const text = await response.text();
+                    data = { error: 'Invalid JSON response', body: text };
+                }
+            } else {
+                const text = await response.text();
+                data = text || { message: 'Empty response' };
+            }
 
             if (response.ok) {
-                addMessage('success', `${serviceName} Response: ${JSON.stringify(data, null, 2)}`);
+                addMessage('success', `${serviceName} Response: ${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
             } else {
-                addMessage('error', `${serviceName} Error (${response.status}): ${JSON.stringify(data, null, 2)}`);
+                addMessage('error', `${serviceName} Error (${response.status}): ${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
             }
         } catch (error) {
             addMessage('error', `${serviceName} Request failed: ${error}`);
@@ -125,16 +141,16 @@ export default function DevConsole({user}: DevConsoleProps) {
     const auctionQueries = [
         {
             label: 'Get All Auctions',
-            action: () => makeRequest('Auction Service', 'http://localhost:8000/api/auctions', 'GET')
+            action: () => makeRequest('Auction Service', API_ENDPOINTS.AUCTION.BASE, 'GET')
         },
         {
             label: 'Get Auction by ID',
-            action: () => makeRequest('Auction Service', `http://localhost:8000/api/auctions/${auctionId}`, 'GET'),
+            action: () => makeRequest('Auction Service', API_ENDPOINTS.AUCTION.BY_ID(auctionId), 'GET'),
             usesId: true
         },
         {
             label: 'Create Test Auction',
-            action: () => makeRequest('Auction Service', 'http://localhost:8000/api/auctions', 'POST', {
+            action: () => makeRequest('Auction Service', API_ENDPOINTS.AUCTION.BASE, 'POST', {
                 itemName: 'Test Item',
                 description: 'Test auction from dev console',
                 startingPrice: 100,
@@ -145,7 +161,7 @@ export default function DevConsole({user}: DevConsoleProps) {
         },
         {
             label: 'Update Auction',
-            action: () => makeRequest('Auction Service', `http://localhost:8000/api/auctions/${auctionId}`, 'PUT', {
+            action: () => makeRequest('Auction Service', API_ENDPOINTS.AUCTION.BY_ID(auctionId), 'PUT', {
                 itemName: 'Updated Item Name',
                 description: 'Updated description from dev console',
                 startingPrice: 150
@@ -154,38 +170,128 @@ export default function DevConsole({user}: DevConsoleProps) {
         },
         {
             label: 'Open Auction',
-            action: () => makeRequest('Auction Service', `http://localhost:8000/api/auctions/${auctionId}/open`, 'POST'),
+            action: () => makeRequest('Auction Service', API_ENDPOINTS.AUCTION.OPEN(auctionId), 'POST'),
             usesId: true
         },
         {
             label: 'End Auction',
-            action: () => makeRequest('Auction Service', `http://localhost:8000/api/auctions/${auctionId}/end`, 'POST'),
+            action: () => makeRequest('Auction Service', API_ENDPOINTS.AUCTION.END(auctionId), 'POST'),
             usesId: true
         },
         {
             label: 'Health Check',
-            action: () => makeRequest('Auction Service', 'http://localhost:8000/api/auction-health', 'GET')
+            action: () => makeRequest('Auction Service', API_ENDPOINTS.AUCTION.HEALTH, 'GET')
         }
     ];
 
-    // Bidding Service Queries
-    const biddingQueries = [
-        {
-            label: 'Place Test Bid',
-            action: () => makeRequest('Bidding Service', 'http://localhost:8000/api/auctions/1/bids', 'POST', {
-                bidderId: user?.username || 'test-user',
-                amount: 150
-            })
-        },
-        {
-            label: 'Get Bids for Auction',
-            action: () => makeRequest('Bidding Service', 'http://localhost:8000/api/auctions/1/bids', 'GET')
-        },
-        {
-            label: 'Health Check',
-            action: () => makeRequest('Bidding Service', 'http://localhost:8082/healthz', 'GET')
+    // Bid-Command Service (CQRS Write Side)
+    const [bidderId, setBidderId] = useState(user?.username || 'test-bidder');
+    const [bidAmount, setBidAmount] = useState<number>(100);
+
+    // Bid-Query Service (CQRS Read Side)
+    const [queryCursor, setQueryCursor] = useState('');
+    const [queryLimit, setQueryLimit] = useState<number>(50);
+    const [queryDirection, setQueryDirection] = useState<'asc' | 'desc'>('desc');
+
+    // Update bidderId when user changes
+    useEffect(() => {
+        if (user?.username) {
+            setBidderId(user.username);
         }
-    ];
+    }, [user]);
+
+    // Generate UUID for Idempotency-Key
+    const generateUUID = () => {
+        return uuidv4();
+    };
+
+    // Enhanced makeRequest to support custom headers
+    const makeRequestWithHeaders = async (
+        serviceName: string,
+        endpoint: string,
+        method: string = 'GET',
+        body?: object,
+        headers?: Record<string, string>
+    ) => {
+        addMessage('info', `[${method}] ${serviceName} -> ${endpoint}`);
+        try {
+            const options: RequestInit = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers
+                },
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            const response = await fetch(endpoint, options);
+
+            // Try to parse JSON, fallback to text if it fails
+            let data;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    const text = await response.text();
+                    data = { error: 'Invalid JSON response', body: text };
+                }
+            } else {
+                const text = await response.text();
+                data = text || { message: 'Empty response' };
+            }
+
+            if (response.ok) {
+                addMessage('success', `${serviceName} Response (${response.status}):\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
+            } else {
+                addMessage('error', `${serviceName} Error (${response.status}):\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
+            }
+        } catch (error) {
+            addMessage('error', `${serviceName} Request failed: ${error}`);
+        }
+    };
+
+    // Bid-Command Service Actions
+    const placeBid = () => {
+        const idempotencyKey = generateUUID();
+        addMessage('info', `Generated Idempotency-Key: ${idempotencyKey}`);
+
+        makeRequestWithHeaders(
+            'Bid-Command Service',
+            API_ENDPOINTS.BID_COMMAND.PLACE_BID(auctionId),
+            'POST',
+            {
+                bidderId: bidderId,
+                amount: bidAmount
+            },
+            {
+                'Idempotency-Key': idempotencyKey
+                // 'Authorization': 'Bearer <token>' // Add when auth is ready
+            }
+        );
+    };
+
+    // Bid-Query Service Actions
+    const queryBids = () => {
+        const endpoint = API_ENDPOINTS.BID_QUERY.BY_AUCTION(auctionId, {
+            cursor: queryCursor || undefined,
+            limit: queryLimit,
+            direction: queryDirection
+        });
+
+        makeRequestWithHeaders(
+            'Bid-Query Service',
+            endpoint,
+            'GET',
+            undefined,
+            {
+                // 'Authorization': 'Bearer <token>' // Add when auth is ready
+            }
+        );
+    };
 
     const clearConsole = () => {
         setMessages([]);
@@ -290,19 +396,116 @@ export default function DevConsole({user}: DevConsoleProps) {
                         </div>
                     </div>
 
-                    {/* Bidding Service */}
+                    {/* Bid-Command Service (CQRS Write) */}
                     <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-3">Bidding Service</h3>
-                        <div className="space-y-2">
-                            {biddingQueries.map((query, index) => (
-                                <button
-                                    key={index}
-                                    onClick={query.action}
-                                    className="w-full px-3 py-2 text-left text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium"
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3">Bid-Command Service</h3>
+                        <p className="text-xs text-gray-500 mb-3">CQRS Write Side - Place Bids</p>
+                        <div className="space-y-3">
+                            {/* Bidder ID Input */}
+                            <div>
+                                <label htmlFor="bidderId" className="block text-xs font-medium text-gray-700 mb-1">
+                                    Bidder ID
+                                </label>
+                                <input
+                                    id="bidderId"
+                                    type="text"
+                                    value={bidderId}
+                                    onChange={(e) => setBidderId(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    placeholder="Enter bidder ID"
+                                />
+                            </div>
+
+                            {/* Bid Amount Input */}
+                            <div>
+                                <label htmlFor="bidAmount" className="block text-xs font-medium text-gray-700 mb-1">
+                                    Bid Amount
+                                </label>
+                                <input
+                                    id="bidAmount"
+                                    type="number"
+                                    value={bidAmount}
+                                    onChange={(e) => setBidAmount(parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    placeholder="Enter bid amount"
+                                    step="0.01"
+                                    min="0"
+                                />
+                            </div>
+
+                            {/* Place Bid Button */}
+                            <button
+                                onClick={placeBid}
+                                className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                            >
+                                Place Bid
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Bid-Query Service (CQRS Read) */}
+                    <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3">Bid-Query Service</h3>
+                        <p className="text-xs text-gray-500 mb-3">CQRS Read Side - Get Bid History</p>
+                        <div className="space-y-3">
+                            {/* Cursor Input */}
+                            <div>
+                                <label htmlFor="queryCursor" className="block text-xs font-medium text-gray-700 mb-1">
+                                    Cursor (Optional)
+                                </label>
+                                <input
+                                    id="queryCursor"
+                                    type="text"
+                                    value={queryCursor}
+                                    onChange={(e) => setQueryCursor(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    placeholder="Paste nextCursor from response"
+                                />
+                            </div>
+
+                            {/* Limit Input */}
+                            <div>
+                                <label htmlFor="queryLimit" className="block text-xs font-medium text-gray-700 mb-1">
+                                    Limit (1-200)
+                                </label>
+                                <input
+                                    id="queryLimit"
+                                    type="number"
+                                    value={queryLimit}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value) || 50;
+                                        setQueryLimit(Math.min(Math.max(val, 1), 200));
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    placeholder="50"
+                                    min="1"
+                                    max="200"
+                                />
+                            </div>
+
+                            {/* Direction Select */}
+                            <div>
+                                <label htmlFor="queryDirection" className="block text-xs font-medium text-gray-700 mb-1">
+                                    Direction
+                                </label>
+                                <select
+                                    id="queryDirection"
+                                    value={queryDirection}
+                                    onChange={(e) => setQueryDirection(e.target.value as 'asc' | 'desc')}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                                 >
-                                    {query.label}
-                                </button>
-                            ))}
+                                    <option value="desc">Newest First (desc)</option>
+                                    <option value="asc">Oldest First (asc)</option>
+                                </select>
+                            </div>
+
+                            {/* Query Bids Button */}
+                            <button
+                                onClick={queryBids}
+                                className="w-full px-3 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
+                            >
+                                Get Bids
+                            </button>
                         </div>
                     </div>
                 </div>
