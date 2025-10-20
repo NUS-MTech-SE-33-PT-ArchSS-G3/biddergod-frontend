@@ -17,7 +17,7 @@ interface ConsoleMessage {
 export default function DevConsole({user}: DevConsoleProps) {
     const [messages, setMessages] = useState<ConsoleMessage[]>([]);
     const [sseConnected, setSseConnected] = useState(false);
-    const [sseUrl, setSseUrl] = useState(API_ENDPOINTS.SSE.EVENTS);
+    const [sseUrl, setSseUrl] = useState<string>(API_ENDPOINTS.SSE.EVENTS);
     const [isConnecting, setIsConnecting] = useState(false);
     const [auctionId, setAuctionId] = useState('Enter Auction ID');
     const messagesEndRef = useRef<HTMLDivElement>(null);

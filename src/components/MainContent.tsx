@@ -1,4 +1,3 @@
-import type {AuthUser} from "aws-amplify/auth";
 import {useState} from "react";
 import AuctionsGrid from "./AuctionsGrid";
 import ApiTestingInterface from "./ApiTestUi/ApiTestingInterface.tsx";
@@ -17,14 +16,10 @@ interface MainContentProps {
 export default function MainContent({user, handleSignOut, setShowAuth}: MainContentProps) {
     const [activeTab, setActiveTab] = useState("home");
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-    const [isCreating, setIsCreating] = useState(false);
-    const [createError, setCreateError] = useState<string | null>(null);
     const [auctionGridKey, setAuctionGridKey] = useState(0);
 
     const handleCreateAuction = async (auctionData: AuctionFormData) => {
         try {
-            setIsCreating(true);
-            setCreateError(null);
 
             // Convert form data to backend format
             const startTime = new Date().toISOString();
@@ -50,11 +45,8 @@ export default function MainContent({user, handleSignOut, setShowAuth}: MainCont
 
         } catch (error) {
             console.error('Failed to create auction:', error);
-            setCreateError(error instanceof Error ? error.message : 'Failed to create auction');
             alert(`Failed to create auction: ${error instanceof Error ? error.message : 'Unknown error'}`);
             throw error; // Re-throw to let dialog handle it if needed
-        } finally {
-            setIsCreating(false);
         }
     };
 
