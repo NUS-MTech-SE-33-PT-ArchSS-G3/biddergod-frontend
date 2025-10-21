@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { openAuction, endAuction } from '../services/auctionService';
+import BidDialog from './BidDialog';
 
 interface AuctionCardProps {
   id?: string;
@@ -16,6 +17,7 @@ interface AuctionCardProps {
   category?: string;
   currentUsername?: string;
   onAuctionUpdate?: () => void;
+  isUpdated?: boolean;
 }
 
 export function AuctionCard({
@@ -33,8 +35,10 @@ export function AuctionCard({
   category = "Collectibles",
   currentUsername,
   onAuctionUpdate,
+  isUpdated = false,
 }: AuctionCardProps) {
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isBidDialogOpen, setIsBidDialogOpen] = useState(false);
   const timeLeft = getTimeRemaining(auctionEndTime);
   const displayPrice = currentBid > 0 ? currentBid : startingPrice;
   const hasImage = imageUrls && imageUrls.length > 0;
@@ -76,7 +80,18 @@ export function AuctionCard({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 overflow-hidden">
+    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-500 ${
+      isUpdated
+        ? 'border-green-400 shadow-lg shadow-green-100 ring-2 ring-green-300'
+        : 'border-gray-200 hover:shadow-md'
+    }`}>
+      {/* Update Indicator */}
+      {isUpdated && (
+        <div className="bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-center">
+          <span className="text-xs font-medium text-white animate-pulse">Price Update</span>
+        </div>
+      )}
+
       {/* Image Section */}
       <div className="relative h-48 bg-gray-100">
         {hasImage ? (
@@ -192,16 +207,46 @@ export function AuctionCard({
           </div>
         ) : (
           // Buyer controls
-          <button
-            className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-              status !== 'open' || timeLeft === 'Ended'
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-            }`}
-            disabled={status !== 'open' || timeLeft === 'Ended'}
-          >
-            {timeLeft === 'Ended' ? 'Auction Ended' : status === 'draft' ? 'Not Yet Open' : 'Place Bid'}
-          </button>
+          <>
+            <button
+              onClick={() => {
+                if (!currentUsername) {
+                  alert('Please sign in to place a bid');
+                  return;
+                }
+                if (!id) {
+                  alert('Invalid auction ID');
+                  return;
+                }
+                setIsBidDialogOpen(true);
+              }}
+              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                status !== 'open' || timeLeft === 'Ended'
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              }`}
+              disabled={status !== 'open' || timeLeft === 'Ended'}
+            >
+              {timeLeft === 'Ended' ? 'Auction Ended' : status === 'draft' ? 'Not Yet Open' : 'Place Bid'}
+            </button>
+
+            {/* Bid Dialog */}
+            {id && currentUsername && (
+              <BidDialog
+                isOpen={isBidDialogOpen}
+                onClose={() => setIsBidDialogOpen(false)}
+                auctionId={id}
+                auctionTitle={title}
+                currentBid={currentBid}
+                startingPrice={startingPrice}
+                bidderId={currentUsername}
+                onBidPlaced={() => {
+                  // Refresh auction data after successful bid
+                  if (onAuctionUpdate) onAuctionUpdate();
+                }}
+              />
+            )}
+          </>
         )}
       </div>
     </div>
