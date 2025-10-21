@@ -150,7 +150,7 @@ export default function MainContent({user, handleSignOut, setShowAuth}: MainCont
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {activeTab === "home" && <AuctionsGrid key={auctionGridKey} currentUsername={user?.username} />}
+                {activeTab === "home" && <AuctionsGrid key={auctionGridKey} currentUsername={user?.username} user={user} />}
                 {activeTab === "profile" && user && <UserProfile user={user} />}
                 {activeTab === "api" && <ApiTestingInterface user={user} />}
                 {activeTab === "dev" && <DevConsole user={user} />}
