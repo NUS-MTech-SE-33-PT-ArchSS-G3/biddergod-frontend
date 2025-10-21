@@ -57,6 +57,9 @@ export const API_ENDPOINTS = {
   // Routes: /api/payments -> payment-service:3000/api/payments
   PAYMENT: {
     BASE: `${KONG_GATEWAY_URL}/api/payments`,
+    CREATE_INTENT: `${KONG_GATEWAY_URL}/api/payments/payment-intents`,
+    GET_INTENT: (id: string) => `${KONG_GATEWAY_URL}/api/payments/payment-intents/${id}`,
+    CONFIRM: (id: string) => `${KONG_GATEWAY_URL}/api/payments/payment-intents/${id}/confirm`,
   },
 
   // SSE Stream Service (Node.js/Express)

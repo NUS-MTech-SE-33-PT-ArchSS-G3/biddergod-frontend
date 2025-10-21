@@ -28,6 +28,7 @@ export interface AuctionDisplay {
   status: string;
   totalBids: number;
   sellerName: string;
+  winnerId?: string | null;
   category?: string;
 }
 
@@ -67,6 +68,7 @@ export function mapAuctionToDisplay(auction: Auction): AuctionDisplay {
     status: auction.status,
     totalBids: 0, // TODO: Will need bid count from bidding service
     sellerName: auction.sellerId, // TODO: Fetch seller name from user service
+    winnerId: auction.winnerId,
     category: undefined, // Not in backend schema yet
   };
 }
