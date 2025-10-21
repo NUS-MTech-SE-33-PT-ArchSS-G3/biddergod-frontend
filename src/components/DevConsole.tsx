@@ -2,6 +2,7 @@ import {useState, useEffect, useRef} from "react";
 import type {AuthUser} from "aws-amplify/auth";
 import { v4 as uuidv4 } from 'uuid';
 import { API_ENDPOINTS } from '../config/api';
+import { useSSE, type SSEEvent } from '../hooks/useSSE';
 
 interface DevConsoleProps {
     user: AuthUser | null;
@@ -16,27 +17,15 @@ interface ConsoleMessage {
 
 export default function DevConsole({user}: DevConsoleProps) {
     const [messages, setMessages] = useState<ConsoleMessage[]>([]);
-    const [sseConnected, setSseConnected] = useState(false);
-    const [sseUrl, setSseUrl] = useState<string>(API_ENDPOINTS.SSE.EVENTS);
-    const [isConnecting, setIsConnecting] = useState(false);
     const [auctionId, setAuctionId] = useState('Enter Auction ID');
+    const [enableSSE, setEnableSSE] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const eventSourceRef = useRef<EventSource | null>(null);
     const messageIdCounter = useRef(0);
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
     }, [messages]);
-
-    // Cleanup SSE connection on unmount
-    useEffect(() => {
-        return () => {
-            if (eventSourceRef.current) {
-                eventSourceRef.current.close();
-            }
-        };
-    }, []);
 
     const addMessage = (type: ConsoleMessage['type'], message: string) => {
         const newMessage: ConsoleMessage = {
@@ -48,52 +37,63 @@ export default function DevConsole({user}: DevConsoleProps) {
         setMessages(prev => [...prev, newMessage]);
     };
 
+    // SSE Event Handler
+    const handleSSEEvent = (event: SSEEvent) => {
+        // Format the event data for display
+        const formattedData = JSON.stringify(event, null, 2);
+        addMessage('sse', formattedData);
+    };
+
+    // Use the authenticated SSE hook
+    const { isConnected: sseConnected, connectionError, reconnectAttempts, disconnect: sseDisconnect, reconnect: sseReconnect } = useSSE({
+        url: API_ENDPOINTS.SSE.EVENTS,
+        onEvent: handleSSEEvent,
+        onOpen: () => {
+            addMessage('success', `SSE connection established (Authenticated as: ${user?.username || 'Unknown'})`);
+        },
+        onError: (error) => {
+            addMessage('error', `SSE connection error: ${error.type}`);
+        },
+        onMaxRetriesReached: () => {
+            addMessage('error', 'Max reconnection attempts (10) reached. Connection has stopped. Click "Connect" to try again.');
+            setEnableSSE(false); // Stop auto-reconnect
+        },
+        autoConnect: false, // Don't auto-connect on mount
+        autoReconnect: enableSSE,
+        reconnectDelay: 3000, // 3 seconds between retries
+        maxReconnectAttempts: 10, // Max 10 attempts before giving up
+        debug: true
+    });
+
     // SSE Connection Functions
     const connectSSE = () => {
-        if (eventSourceRef.current) {
+        if (sseConnected) {
             addMessage('info', 'Already connected to SSE stream');
             return;
         }
 
-        setIsConnecting(true);
-        addMessage('info', `Connecting to SSE stream at ${sseUrl}...`);
-
-        try {
-            const eventSource = new EventSource(sseUrl);
-
-            eventSource.onopen = () => {
-                setSseConnected(true);
-                setIsConnecting(false);
-                addMessage('success', 'SSE connection established');
-            };
-
-            eventSource.onmessage = (event) => {
-                addMessage('sse', `SSE Event: ${event.data}`);
-            };
-
-            eventSource.onerror = () => {
-                setSseConnected(false);
-                setIsConnecting(false);
-                addMessage('error', 'SSE connection error');
-                eventSource.close();
-                eventSourceRef.current = null;
-            };
-
-            eventSourceRef.current = eventSource;
-        } catch (error) {
-            setIsConnecting(false);
-            addMessage('error', `Failed to connect: ${error}`);
+        if (!user) {
+            addMessage('error', 'Cannot connect: No authenticated user. Please sign in first.');
+            return;
         }
+
+        addMessage('info', `Connecting to SSE stream at ${API_ENDPOINTS.SSE.EVENTS}...`);
+        setEnableSSE(true);
+        sseReconnect();
     };
 
     const disconnectSSE = () => {
-        if (eventSourceRef.current) {
-            eventSourceRef.current.close();
-            eventSourceRef.current = null;
-            setSseConnected(false);
-            addMessage('info', 'SSE connection closed');
-        }
+        addMessage('info', 'Disconnecting from SSE stream...');
+        setEnableSSE(false);
+        sseDisconnect();
     };
+
+    // Show connection errors in console
+    useEffect(() => {
+        if (connectionError) {
+            addMessage('error', connectionError);
+        }
+    }, [connectionError]);
 
     // API Request Functions
     const makeRequest = async (serviceName: string, endpoint: string, method: string = 'GET', body?: object) => {
@@ -326,16 +326,12 @@ export default function DevConsole({user}: DevConsoleProps) {
                 <div className="w-[30%] space-y-4 overflow-y-auto">
                     {/* SSE Connection Controls */}
                     <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-3">SSE Stream</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3">SSE Stream (with JWT Auth)</h3>
                         <div className="space-y-3">
-                            <input
-                                type="text"
-                                value={sseUrl}
-                                onChange={(e) => setSseUrl(e.target.value)}
-                                disabled={sseConnected}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="SSE endpoint URL"
-                            />
+                            <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
+                                <div><strong>Endpoint:</strong> {API_ENDPOINTS.SSE.EVENTS}</div>
+                                <div><strong>User:</strong> {user?.username || 'Not signed in'}</div>
+                            </div>
                             {sseConnected ? (
                                 <button
                                     onClick={disconnectSSE}
@@ -346,16 +342,24 @@ export default function DevConsole({user}: DevConsoleProps) {
                             ) : (
                                 <button
                                     onClick={connectSSE}
-                                    disabled={isConnecting}
+                                    disabled={!user}
                                     className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
                                 >
-                                    {isConnecting ? 'Connecting...' : 'Connect'}
+                                    Connect
                                 </button>
                             )}
                             <div className={`flex items-center justify-center space-x-2 ${sseConnected ? 'text-green-600' : 'text-gray-400'}`}>
                                 <div className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-green-600' : 'bg-gray-400'}`}></div>
-                                <span className="text-xs font-medium">{sseConnected ? 'Connected' : 'Disconnected'}</span>
+                                <span className="text-xs font-medium">
+                                    {sseConnected ? 'Connected' : 'Disconnected'}
+                                    {reconnectAttempts > 0 && !sseConnected && ` (Retry ${reconnectAttempts}/10)`}
+                                </span>
                             </div>
+                            {!user && (
+                                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                                    Please sign in to use SSE streaming
+                                </div>
+                            )}
                         </div>
                     </div>
 
