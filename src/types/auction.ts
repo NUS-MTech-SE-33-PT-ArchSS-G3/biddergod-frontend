@@ -65,7 +65,7 @@ export function mapAuctionToDisplay(auction: Auction): AuctionDisplay {
     itemDescription: auction.itemDescription,
     startingPrice: auction.startingPrice,
     currentBid: auction.currentPrice,
-    imageUrls: auction.imageUrls.split(','), // TODO: Add image support if backend supports it
+    imageUrls: auction.imageUrls ? auction.imageUrls.split(',') : [],
     condition: auction.condition, // Not in backend schema yet
     auctionEndTime: auction.endTime,
     status: auction.status,
