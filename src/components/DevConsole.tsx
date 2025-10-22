@@ -193,6 +193,9 @@ export default function DevConsole({user}: DevConsoleProps) {
     const [queryLimit, setQueryLimit] = useState<number>(50);
     const [queryDirection, setQueryDirection] = useState<'asc' | 'desc'>('desc');
 
+    // Test Winner Notification State
+    const [testWinnerId, setTestWinnerId] = useState('');
+
     // Update bidderId when user changes
     useEffect(() => {
         if (user?.username) {
@@ -510,6 +513,103 @@ export default function DevConsole({user}: DevConsoleProps) {
                             >
                                 Get Bids
                             </button>
+                        </div>
+                    </div>
+
+                    {/* Test Winner Notification */}
+                    <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3">Test Winner Notification</h3>
+                        <p className="text-xs text-gray-500 mb-3">Simulate winning an auction (via Kafka)</p>
+                        <div className="space-y-3">
+                            {/* Show logged-in user info */}
+                            {user && (
+                                <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
+                                    <div><strong>Seller ID (You):</strong> {user?.username}</div>
+                                    <div className="text-xs text-gray-500 mt-1">You're the seller in this test</div>
+                                </div>
+                            )}
+
+                            {/* Winner ID Input */}
+                            <div>
+                                <label htmlFor="testWinnerId" className="block text-xs font-medium text-gray-700 mb-1">
+                                    Winner ID (User to notify)
+                                </label>
+                                <input
+                                    id="testWinnerId"
+                                    type="text"
+                                    value={testWinnerId}
+                                    onChange={(e) => setTestWinnerId(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                    placeholder="Enter winner's user ID"
+                                />
+                                <p className="mt-1 text-xs text-gray-500">
+                                    This user will receive the winner notification
+                                </p>
+                            </div>
+
+                            {/* Copy Kafka Command Button */}
+                            <button
+                                onClick={() => {
+                                    const winnerId = testWinnerId || user?.username || 'YOUR-USERNAME';
+                                    const sellerId = user?.username || 'SELLER-ID';
+
+                                    // Create single-line JSON (no newlines)
+                                    const jsonMessage = JSON.stringify({
+                                        type: "auction.won",
+                                        recipientType: "targeted",
+                                        targetUsers: [winnerId],
+                                        auctionId: `test-${Date.now()}`,
+                                        itemName: "THIS IS A TEST",
+                                        finalPrice: 533,
+                                        winnerId: winnerId,
+                                        sellerId: sellerId,
+                                        wonAt: new Date().toISOString(),
+                                        timestamp: new Date().toISOString()
+                                    });
+
+                                    const command = `echo '${jsonMessage}' | docker exec -i biddergod-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic auction.won`;
+
+                                    navigator.clipboard.writeText(command).then(() => {
+                                        addMessage('success', `Copied to clipboard`);
+                                    }).catch(() => {
+                                        addMessage('error', 'Failed to copy. Use manual copy.');
+                                        addMessage('info', `Command:\n${command}`);
+                                    });
+                                }}
+                                disabled={!user}
+                                className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                Copy "auction.won" Command
+                            </button>
+
+                            {/* Kafka UI Link */}
+                            <a
+                                href="http://localhost:9000"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-center block"
+                            >
+                                Open Kafka UI
+                            </a>
+
+                            {!user && (
+                                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                                    Please sign in first
+                                </div>
+                            )}
+
+                            <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-200">
+                                <div className="font-semibold mb-1">How to test:</div>
+                                <ol className="list-decimal ml-4 space-y-1">
+                                    <li>Connect to SSE</li>
+                                    <li>Click "Copy "auction.won" Command"</li>
+                                    <li>PAste in a terminal and execute</li>
+                                </ol>
+                            </div>
+
+                            <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
+                                <strong>Alternative:</strong> Use Kafka UI → Topics → auction.won → Produce Message
+                            </div>
                         </div>
                     </div>
                 </div>

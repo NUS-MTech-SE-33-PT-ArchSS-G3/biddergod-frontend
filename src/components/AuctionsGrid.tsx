@@ -32,7 +32,6 @@ export default function AuctionsGrid({ currentUsername, user }: AuctionsGridProp
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('ending_soon');
   const [updatedAuctionIds, setUpdatedAuctionIds] = useState<Set<string>>(new Set());
-
   // Winner notification state
   const [winnerNotification, setWinnerNotification] = useState<WinnerNotificationData | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -125,7 +124,23 @@ export default function AuctionsGrid({ currentUsername, user }: AuctionsGridProp
       case 'auction.won':
       case 'AuctionWon':
         // TARGETED EVENT - Only winner receives this
-        console.log('Congratulations! You won auction:', event.data?.auctionId);
+        // Event structure from auction service:
+        // { type, recipientType, targetUsers, auctionId, itemName, finalPrice, winnerId, sellerId, wonAt, timestamp }
+        if ((event as any).winnerId && (event as any).winnerId === currentUsername) {
+          // Find auction details from local state
+          const wonAuction = auctions.find((a) => a.id === (event as any).auctionId);
+
+          // Show winner notification (without payment deadline since payment service isn't ready)
+          setWinnerNotification({
+            auctionId: (event as any).auctionId || '',
+            auctionTitle: (event as any).itemName || wonAuction?.title || 'Auction Item',
+            finalPrice: (event as any).finalPrice || wonAuction?.currentBid || 0,
+            paymentDeadline: undefined, // No deadline yet - payment service not integrated
+            sellerId: (event as any).sellerId || wonAuction?.sellerName || '',
+          });
+
+          console.log('Congratulations! You won auction:', (event as any).auctionId);
+        }
         break;
 
       default:

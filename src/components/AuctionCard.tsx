@@ -5,7 +5,7 @@ import BidDialog from './BidDialog';
 interface AuctionCardProps {
   id?: string;
   title?: string;
-  description?: string;
+  itemDescription?: string;
   startingPrice?: number;
   currentBid?: number;
   imageUrls?: string[];
@@ -23,7 +23,7 @@ interface AuctionCardProps {
 export function AuctionCard({
   id,
   title = "Premium Auction Item",
-  description = "A carefully curated item perfect for collectors and enthusiasts.",
+  itemDescription = "A carefully curated item perfect for collectors and enthusiasts.",
   startingPrice = 100,
   currentBid = 0,
   imageUrls,
@@ -135,7 +135,7 @@ export function AuctionCard({
             {title}
           </h3>
           <p className="text-gray-600 text-sm line-clamp-2">
-            {description}
+            {itemDescription}
           </p>
         </div>
 
