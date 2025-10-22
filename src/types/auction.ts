@@ -4,6 +4,9 @@ export interface Auction {
   id: string;
   itemName: string;
   itemDescription: string;
+  category: string;
+  condition: string;
+  imageUrls: string;
   startingPrice: number;
   currentPrice: number;
   sellerId: string;
@@ -62,13 +65,13 @@ export function mapAuctionToDisplay(auction: Auction): AuctionDisplay {
     itemDescription: auction.itemDescription,
     startingPrice: auction.startingPrice,
     currentBid: auction.currentPrice,
-    imageUrls: [], // TODO: Add image support if backend supports it
-    condition: undefined, // Not in backend schema yet
+    imageUrls: auction.imageUrls.split(','), // TODO: Add image support if backend supports it
+    condition: auction.condition, // Not in backend schema yet
     auctionEndTime: auction.endTime,
     status: auction.status,
     totalBids: 0, // TODO: Will need bid count from bidding service
     sellerName: auction.sellerId, // TODO: Fetch seller name from user service
     winnerId: auction.winnerId,
-    category: undefined, // Not in backend schema yet
+    category: auction.category, // Not in backend schema yet
   };
 }

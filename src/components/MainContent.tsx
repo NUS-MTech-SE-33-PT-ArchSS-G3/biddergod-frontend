@@ -30,6 +30,9 @@ export default function MainContent({user, handleSignOut, setShowAuth}: MainCont
                 itemDescription: auctionData.description,
                 startingPrice: auctionData.startingPrice,
                 sellerId: user?.username || 'anonymous', // Use authenticated user
+                category: auctionData.category,
+                condition: auctionData.condition,
+                imageUrls:  auctionData.imageUrls.join(','),
                 startTime,
                 endTime,
             };
