@@ -1,11 +1,19 @@
 /**
  * API Configuration
  * Centralized API endpoint configuration for all microservices
- * All requests go through Kong API Gateway at localhost:8000
+ * All requests go through Kong API Gateway
+ *
+ * Environment-aware configuration:
+ * - Local development: http://localhost:8000 (via docker-compose)
+ * - Production: Kong public IP from AWS ECS (injected via Amplify build)
  */
 
-// Kong API Gateway base URL
-export const KONG_GATEWAY_URL = 'http://localhost:8000';
+import { config } from './environment';
+
+// Kong API Gateway base URL (environment-aware)
+// Local: http://localhost:8000
+// Production: http://<kong-public-ip>:8000
+export const KONG_GATEWAY_URL = config.apiGatewayUrl;
 
 /**
  * API Endpoints Configuration

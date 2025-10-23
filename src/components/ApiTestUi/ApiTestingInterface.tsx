@@ -3,8 +3,9 @@ import type {AuthUser} from "aws-amplify/auth";
 import {fetchAuthSession} from "aws-amplify/auth";
 import {UserInformation} from "./UserInformation.tsx";
 import TokensCopyTool from "./TokensCopyTool.tsx";
-import SwaggerUI from "swagger-ui-react"
-import "swagger-ui-react/swagger-ui.css"
+import SwaggerUI from "swagger-ui-react";
+import "swagger-ui-react/swagger-ui.css";
+import { config } from "../../config/environment";
 
 interface ApiTestingInterfaceProps {
     user: AuthUser | null;
@@ -16,8 +17,10 @@ export default function ApiTestingInterface({user}: ApiTestingInterfaceProps) {
     const [isLoading, setIsLoading] = useState(false);
     const[showSwaggerUI, setShowSwaggerUI] = useState(false);
 
-    // const USERS_SERVICE_URL = "http://localhost:8080";
-    const USERS_SERVICE_URL = import.meta.env.VITE_USER_API_URL;
+    // Use environment-aware configuration
+    // In local dev: http://localhost:8000 (Kong API Gateway via docker-compose)
+    // In production: Kong public IP/URL from AWS deployment
+    const USERS_SERVICE_URL = config.apiGatewayUrl;
 
     useEffect(() => {
         if (user) {
