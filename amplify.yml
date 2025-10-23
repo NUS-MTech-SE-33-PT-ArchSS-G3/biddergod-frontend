@@ -13,11 +13,11 @@ frontend:
         - npm ci --cache .npm --prefer-offline
     build:
       commands:
-        # Create production environment file with Kong API Gateway URL
-        # Set KONG_URL environment variable in Amplify Console
+        # Create production environment file with ALB API Gateway URL
+        # Set VITE_API_GATEWAY_URL environment variable in Amplify Console
         - |
           cat > .env.production << EOF
-          VITE_API_GATEWAY_URL=${KONG_URL}
+          VITE_API_GATEWAY_URL=${VITE_API_GATEWAY_URL}
           EOF
         # Build the frontend application
         - npm run build
