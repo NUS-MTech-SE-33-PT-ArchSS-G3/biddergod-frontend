@@ -9,6 +9,15 @@
  * - Production build: `npm run build` uses .env.production with deployed AWS URLs
  */
 
+// Extend Window interface for runtime config
+declare global {
+  interface Window {
+    _env_?: {
+      VITE_API_GATEWAY_URL?: string;
+    };
+  }
+}
+
 interface EnvironmentConfig {
   // Primary API Gateway URL (Kong) - All requests go through here
   apiGatewayUrl: string;
@@ -20,15 +29,22 @@ interface EnvironmentConfig {
 
 /**
  * Get environment configuration based on current mode
+ * Supports runtime configuration from window._env_ (injected by docker-entrypoint.sh)
+ * Falls back to Vite build-time environment variables
  */
 function getEnvironmentConfig(): EnvironmentConfig {
   const isDevelopment = import.meta.env.DEV;
   const isProduction = import.meta.env.PROD;
 
   // Kong API Gateway URL - ALL requests go through here
-  // Local dev: http://localhost:8000
-  // Production: http://<kong-public-ip>:8000
-  const apiGatewayUrl = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8000';
+  // Priority:
+  // 1. Runtime config from window._env_ (Docker/ECS deployment)
+  // 2. Vite build-time env var (Amplify deployment)
+  // 3. Localhost fallback (local development)
+  const apiGatewayUrl =
+    window._env_?.VITE_API_GATEWAY_URL ||
+    import.meta.env.VITE_API_GATEWAY_URL ||
+    'http://localhost:8000';
 
   return {
     apiGatewayUrl,
