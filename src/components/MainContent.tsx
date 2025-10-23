@@ -1,6 +1,6 @@
 import {useState} from "react";
 import AuctionsGrid from "./AuctionsGrid";
-import ApiTestingInterface from "./ApiTestUi/ApiTestingInterface.tsx";
+// import ApiTestingInterface from "./ApiTestUi/ApiTestingInterface.tsx";
 import DevConsole from "./DevConsole";
 import CreateAuctionDialog, { type AuctionFormData } from "./CreateAuctionDialog";
 import UserProfile from "./UserProfile";
